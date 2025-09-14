@@ -1,0 +1,589 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Elder Buddy</title>
+
+  <!-- Chessboard UI CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    body { 
+      font: 18px/1.45 ui-sans-serif,-apple-system,Segoe UI,Roboto; 
+      margin:0; 
+      background: #f7ecd7; /* warm, Claude-ish tint */
+      color:#111; 
+    }
+    #wrap { 
+      display:flex; 
+      align-items:flex-start; 
+      min-height:100vh; 
+      max-width:100vw; 
+      margin:0; 
+      padding:0; 
+      gap:16px; 
+    }
+
+    /* LEFT: chess area */
+    #left { 
+      width: 56vw; 
+      min-width: 420px; 
+      max-width: 100vw; 
+      display:flex; 
+      flex-direction:column; 
+      align-items:flex-start; 
+      box-sizing:border-box; 
+      padding:24px; 
+    }
+    #left h1 {
+    font-size: 28px;
+    font-family: 'Roboto Mono', monospace;
+    margin: 8px 0 16px;
+    text-align: center;
+    width: 100%;           /* or: align-self: stretch; */
+    }
+    #board { 
+      width: 100%; 
+      max-width: 90vh; 
+      aspect-ratio: 1 / 1; 
+      border-radius: 16px; 
+      overflow: hidden; 
+      box-shadow: 0 20px 40px rgba(0,0,0,.08); 
+      margin:0; 
+      background:#fff; 
+    }
+    .controls { 
+      margin:16px 0; 
+      display:flex; 
+      gap:12px; 
+      align-items:center; 
+    }
+
+    /* RIGHT: voice companion */
+    #right { 
+    flex: 1; 
+    min-width: 320px; 
+    box-sizing: border-box; 
+    padding: 24px 24px 24px 0;        /* fixed the 'px' typo */
+    display: flex;
+    justify-content: center;          /* vertical centering */
+    align-items: center;               /* horizontal centering */
+    min-height: 100vh;
+    }
+
+    /* Stack keeps header above panel and constrains width */
+    .panel-stack{
+    display: flex;
+    flex-direction: column;
+    align-items: center;               /* center header + panel as a unit */
+    gap: 8px;
+    max-width: 320px;                  /* controls overall width */
+    width: 100%;
+    }
+
+    /* Right heading + blurb directly above the panel */
+    #rightHeader{
+    width: 100%;
+    text-align: center;
+    }
+
+    #rightHeader h1{
+    font-size: 28px;
+    font-family: 'Roboto Mono', monospace;
+    margin: 8px 0 8px;
+    }
+
+    #rightHeader .blurb{
+    margin: 6px 0 12px;
+    font-size: 18px;
+    line-height: 1.5;
+    opacity: 0.85;
+    font-family: 'Roboto Mono', monospace;
+
+    }
+
+    /* Panel fills the same constrained width */
+    #voicePanel { 
+    align-self: stretch;               /* match stack width */
+    background: rgba(21,25,50,0.25);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(36,39,66,0.6);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
+    }
+
+    /* Mobile: keep it simple */
+    @media (max-width: 1024px){
+    #right{
+        min-height: auto;
+        padding: 0 24px 24px;
+    }
+    }
+
+    /* Improved buttons */
+    button, .btn { 
+      height:44px; 
+      padding:0 16px; 
+      border-radius:10px; 
+      border:0; 
+      background:#3B82F6; 
+      color:#fff; 
+      font-weight:600; 
+      cursor:pointer; 
+      text-decoration:none; 
+      display:inline-flex; 
+      align-items:center;
+      transition: all 0.2s ease;
+      font-size: 14px;
+    }
+    button:hover { 
+      background:#2563EB; 
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    button:disabled {
+      background: #374151;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    button:disabled:hover {
+      background: #374151;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Status badges */
+    .badge-success { background:#059669; color: white; }
+    .badge-warning { background:#d97706; color: white; }
+    .badge-danger { background:#dc2626; color: white; }
+    .badge-secondary { background:#374151; color: white; }
+    #session-status {
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:12px;
+      font-size:12px;
+      font-weight:500;
+      transition: all 0.3s ease;
+    }
+
+    /* Improved rows */
+    .row {
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      margin:12px 0;
+    }
+    .row > * { height:40px; }
+
+    /* Better selects */
+    select, .select { 
+      height:40px; 
+      padding:0 12px; 
+      border-radius:8px; 
+      border:1px solid #2a2d3f; 
+      background:#0f1220; 
+      color:#eaeaf0; 
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    select:hover {
+      border-color: #3B82F6;
+    }
+    select:focus {
+      outline: none;
+      border-color: #3B82F6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Improved transcript */
+    #transcript {
+      background:#0f1220;
+      border-radius:10px;
+      padding:12px;
+      min-height:120px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space:pre-wrap;
+      font:13px/1.4 'SF Mono', Monaco, monospace; 
+      margin-top:12px;
+      border: 1px solid #242742;
+      transition: all 0.2s ease;
+    }
+    #transcript:hover {
+      border-color: #2a2d3f;
+    }
+
+    /* Message styling in transcript */
+    .system-message { color:#9aa3b2; font-style: italic; }
+    .user-speech { color:#f0c674; font-weight: 500; }
+    .ai-speech { color:#8be9fd; }
+
+    /* Improved mic button area */
+    .mic-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 16px 0;
+    }
+    
+    .mic-circle {
+      width: 150px !important;
+      height: 150px !important;
+      border-radius: 50% !important;
+      background: linear-gradient(135deg, #374151, #4b5563) !important;
+      border: 2px solid #6b7280 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-size: 24px !important;
+      padding: 0 !important;
+      transition: all 0.3s ease !important;
+      cursor: pointer !important;
+    }
+    
+    .mic-circle:hover {
+      transform: scale(1.05) !important;
+      background: linear-gradient(135deg, #4b5563, #6b7280) !important;
+      box-shadow: 0 8px 20px rgba(107, 114, 128, 0.3) !important;
+    }
+    
+    .mic-circle:disabled {
+      opacity: 0.5 !important;
+      cursor: not-allowed !important;
+      transform: none !important;
+    }
+    
+    .mic-circle.active {
+      background: linear-gradient(135deg, #059669, #10b981) !important;
+      border-color: #10b981 !important;
+      animation: pulse 2s infinite !important;
+    }
+    
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Mic status */
+    #micStatus {
+      margin-top:8px;
+      font-size: 13px;
+      color: #9aa3b2;
+      text-align: center;
+    }
+
+    /* Mic test result */
+    #micTestResult {
+      display:none;
+      margin-top:6px;
+      font-size: 12px;
+      padding: 6px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    /* Waiting indicator */
+    #waitingIndicator {
+      color: #f0c674;
+      font-weight: 500;
+      text-align: center;
+      margin: 8px 0;
+    }
+
+    /* Voice visualizations */
+    #userVoiceVisualization, #aiVoiceVisualization {
+      height: 20px;
+      margin: 4px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Mic icon animations */
+    #mic-icon.active { 
+      color:#10b981; 
+      animation:micPulse 1.5s infinite; 
+    }
+    @keyframes micPulse { 
+      0%{opacity:1} 50%{opacity:.5} 100%{opacity:1} 
+    }
+    #mic-icon.mic-off { 
+      color:#6c757d; 
+    }
+
+    /* Utility classes */
+    .hidden { display:none !important; }
+    .voice-bar {
+      width:4px;
+      display:inline-block;
+      margin-right:1px;
+      background:#8be9fd;
+      height:8px;
+      border-radius:2px;
+      animation: voiceBar 0.5s ease-in-out infinite alternate;
+    }
+    
+    @keyframes voiceBar {
+      0% { height: 4px; }
+      100% { height: 12px; }
+    }
+
+    /* Responsive */
+    @media (max-width:1024px){
+      #wrap{flex-direction:column}
+      #right{padding:0 24px 24px}
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <!-- LEFT: CHESS -->
+    <div id="left">
+      <h1>Chess with your AI Friend</h1>
+      <div id="board"></div>
+
+      <div class="controls">
+        <button id="hint">Hint</button>
+        <button id="undo">Undo</button>
+
+      </div>
+
+    </div>
+
+    <!-- RIGHT: VOICE COMPANION -->
+   <div id="right">
+  <div class="panel-stack">
+    <div id="rightHeader" class="side-header">
+      <h1>Your AI Companion</h1>
+      <p class="blurb">I'm here to play chess and chat with you. Just tap the start button and the microphone to talk to me!</p>
+    </div>
+
+
+      <div id="voicePanel">
+        <h2>
+          Companion Voice
+          <span id="session-status" class="badge-secondary">Inactive</span>
+        </h2>
+
+        <div class="row">
+          <button id="startBtn">Start</button>
+          <button id="stopBtn" disabled>Stop</button>
+          <button id="testMicBtn" style = "display: none">Test Mic</button>
+          <button id="clearBtn" style = "display: none">Clear</button>
+          <button id="theme-toggle" style = "display: none" title="Toggle theme">🌓</button>
+        </div>
+        <div class="mic-wrap">
+            <button id="micBtn" class="mic-circle" title="Toggle microphone" disabled>
+                <span class="mic-glyph">🎙️</span>
+            </button>
+            <div id="micStatus">Click Start</div>
+        </div>
+        <span id="mic-icon" class="mic-off" title="Mic status" style = "display: none">🎙️</span>
+
+        <div class="row">
+          <label style = "display:none">Character
+            <select id="character-select" class="select" style="margin-left:6px; min-width:160px;">
+                <option value="angry_dwarf" selected>Angry Dwarf</option>
+            </select>
+          </label>
+          <label style="display: none">Voice
+            <select id="voice-select" class="select" style="display: none">
+              <option value="verse" selected>verse</option>
+              <option value="alloy">alloy</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="waitingIndicator" class="hidden">Listening…</div>
+        <div id="userVoiceVisualization" class="hidden"></div>
+        <div id="aiVoiceVisualization" class="hidden"></div>
+
+        <div id="micStatus" style = "display: none">Click Start</div>
+        <div id="micTestResult"></div>
+
+        <div id="transcript" style = "display: none"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // The WebRTC client reads this; change model if desired
+    window.rtcConfig = { model: 'gpt-4o-realtime-preview-2024-12-17' };
+  </script>
+  <script src="/app/static/js/webrtc_realtime.js"></script>
+
+  <!-- jQuery (required by chessboard-js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+  <!-- chess.js UMD (creates global `Chess`); has to load BEFORE our code -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js"
+          onload="console.log('chess.js loaded')"
+          onerror="console.error('chess.js failed to load')"></script>
+
+  <!-- Fallback: if UMD didn't define Chess, import ESM and attach to window -->
+  <script type="module">
+    if (!window.Chess) {
+      const { Chess } = await import('https://esm.sh/chess.js@1.3.0');
+      window.Chess = Chess;
+      console.log('chess.js ESM fallback loaded');
+    }
+  </script>
+
+  <!-- chessboard-js (UMD; creates global `Chessboard`) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+  <!-- Stockfish WASM/Worker (host locally to avoid CORS) -->
+  <script>
+    let sf = null;
+    let sfReady = false;
+
+    try {
+      // Make sure this file exists at app/static/vendor/stockfish/stockfish.js
+      sf = new Worker('/app/static/vendor/stockfish/stockfish.js');
+      sf.onmessage = (e) => {
+        const s = String(e.data || '');
+        if (s.indexOf('uciok') !== -1) { sfReady = true; return; }
+
+        const m = s.match(/bestmove\s+([a-h]\d)([a-h]\d)([a-z]?)/);
+        if (!m) return;
+        const from = m[1], to = m[2], promo = m[3] || undefined;
+
+        if (window.wantHint){
+          window.wantHint = false;
+          setCaption(`Hint: ${from} to ${to}.`);
+          return; // don't move pieces when hinting
+        }
+
+        const res = game.move({ from, to, promotion: promo || 'q' });
+        if (res){
+          board.position(game.fen());
+          setCaption('Your move.');
+          if (window.opener && typeof window.opener.assistantSay === 'function') {
+            window.opener.assistantSay('Your turn.');
+          }
+        }
+      };
+      sf.postMessage('uci');
+    } catch (e) {
+      console.error('Stockfish worker failed to start:', e);
+      sf = null;
+    }
+
+    function sfCmd(msg){
+      if (!sf) return;
+      if (typeof msg !== 'string' || !msg) return;
+      if (!sfReady && !/^uci/.test(msg)) return;
+      try { sf.postMessage(msg); } catch (e) { console.error(e); }
+    }
+
+    (function start() {
+      function tryInit() {
+        if (typeof window.Chess === 'function') init();
+        else setTimeout(tryInit, 50);
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tryInit);
+      else tryInit();
+    })();
+
+    function init() {
+        const characterSelect = document.getElementById('character-select');
+        if (characterSelect) {
+        // Always set to angry_dwarf and persist
+        characterSelect.value = 'angry_dwarf';
+        localStorage.setItem('selectedCharacter', 'angry_dwarf');
+        window.selectedCharacter = 'angry_dwarf';
+
+        // If you want to allow changing, uncomment below:
+        // characterSelect.addEventListener('change', function() {
+        //   localStorage.setItem('selectedCharacter', this.value);
+        //   window.selectedCharacter = this.value;
+        // });
+        }
+      if (typeof Chess !== 'function') { alert('Could not load chess.js.'); return; }
+      if (typeof Chessboard !== 'function') { alert('Could not load chessboard.js.'); return; }
+
+      window.wantHint = false;
+
+      window.game = new Chess();
+      window.board = Chessboard('board', {
+        position: 'start',
+        draggable: true,
+        pieceTheme: function (piece) {
+          // Ensure these PNGs exist in /app/static/vendor/pieces/
+          const M = {
+            wK:'white-king.png',   wQ:'white-queen.png', wR:'white-rook.png',
+            wB:'white-bishop.png', wN:'white-knight.png', wP:'white-pawn.png',
+            bK:'black-king.png',   bQ:'black-queen.png', bR:'black-rook.png',
+            bB:'black-bishop.png', bN:'black-knight.png', bP:'black-pawn.png'
+          };
+          return '/app/static/vendor/pieces/' + M[piece];
+        },
+        onDragStart: (source, piece) => {
+          const over = typeof game.game_over === 'function'
+            ? game.game_over()
+            : (typeof game.isGameOver === 'function' ? game.isGameOver() : false);
+          if (over) return false;
+          if (piece && piece[0] === 'b') return false; // user plays White
+        },
+        onDrop: (source, target) => {
+          const move = game.move({ from: source, to: target, promotion: 'q' });
+          if (move === null) return 'snapback';
+          setCaption('Okay. My move.');
+        const active = !!(window.realtime && window.realtime.isActive && window.realtime.isActive());
+        console.log('[chess] user moved:', move.san, 'realtime active?', active);
+
+        if (active) {
+            const text = `Chess update: White played ${move.san}. FEN: ${game.fen()}. `
+            + `Reply with a short 5-6 word sentence. Be really casual and interesting, commenting on their move. Feel free to throw in a chuckle if its a bad move or a suprised noise if its a good move. Don't be overly complimentary, if it's a bad move feel free to critize the move. Mix it up so you make sure not to make the same comments.`;
+            const ok = window.realtime.sendText(text);
+            console.log('[chess] sendText ok?', ok);
+        } else {
+            // Helpful hint if you forgot to start
+            const status = document.getElementById('session-status');
+            if (status) status.textContent = 'Inactive';
+        }
+
+
+          setTimeout(botMove, 5000);
+        },
+        onSnapEnd: () => board.position(game.fen())
+      });
+
+      window.setCaption = function(t){
+        const el = document.getElementById('caption'); if (el) el.textContent = t;
+      };
+
+      function bestMove(depth = 8){
+        sfCmd('position fen ' + game.fen());
+        sfCmd('go depth ' + depth);
+      }
+      function botMove(){
+        if (!sf) return;
+        const gentle = document.getElementById('gentle')?.checked;
+        bestMove(gentle ? 6 : 10);
+      }
+
+      document.getElementById('hint').onclick = () => {
+        window.wantHint = true;
+        bestMove(6);
+        setCaption('Here’s one idea…');
+      };
+      document.getElementById('undo').onclick = () => {
+        if (game.history().length) game.undo(); // bot
+        if (game.history().length) game.undo(); // user
+        board.position(game.fen());
+        setCaption('Undo done.');
+      };
+    }
+  </script>
+
+  <!-- Realtime model config + script include -->
+</body>
+</html>
